@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+
+{% block content %}
+
+<div class="">
+  <h2 class="subtitle">Enter an URL to shorten</h2>
+  <div class="box">
+    <form method="POST" action="/shorten">
+      <div class="field">
+        <div class="control">
+          <input class="input" type="url" name="full_url"
+                 placeholder="Full URL" autofocus="" />
+        </div>
+      </div>
+      <button class="button is-block is-info is-fullwidth">
+        Shorten URL
+      </button>
+    </form>
+  </div>
+</div>
+
+<br><br><br>
+
+<h2 class="subtitle">Your shortened URLs</h2>
+<div class="box">
+  <form method="POST" action="/remove">
+    <div class="columns">
+      <div class="column">
+        <u>Short URL</u>
+      </div>
+      <div class="column">
+        <u>Full URL</u>
+      </div>
+      <div class="column">
+        <u>Expiry date</u>
+      </div>
+      <div class="column">
+      </div>
+    </div>
+    {% for hash, short_url, full_url, expiry_date in urls_list %}
+    <div class="columns">
+      <div class="column">
+        <div class="field">
+          {{ short_url }}
+          <input type="hidden" name="hash" value="{{ hash }}" />
+        </div>
+      </div>
+      <div class="column">
+        {{ full_url }}
+      </div>
+      <div class="column">
+        {{ expiry_date.strftime("%Y-%m-%d, %H:%M:%S") }}
+      </div>
+      <div class="column">
+        <button class="button is-info">
+          Remove
+        </button>
+      </div>
+    </div>
+    {% endfor %}
+  </form>
+</div>
+
+{% endblock %}
