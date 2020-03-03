@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+
+
+{% block content %}
+
+<div class="">
+  <h2 class="subtitle">Enter an URL to shorten</h2>
+  <div class="box">
+    <form method="POST" action="/shorten">
+      <div class="field">
+        <div class="control">
+          <input class="input" type="url" name="full_url"
+                 placeholder="Full URL" autofocus="">
+        </div>
+      </div>
+      <button class="button is-block is-info is-fullwidth">
+        Shorten URL
+      </button>
+    </form>
+  </div>
+</div>
+
+<br><br><br>
+
+<h2 class="subtitle">Your shortened URLs</h2>
+<div class="box">
+  <div class="columns is-vcentered">
+    <div class="column is-1">
+      <u>Hash</u>
+    </div>
+    <div class="column is-5">
+      <u>Full URL</u>
+    </div>
+    <div class="column is-2">
+      <u>Analytics</u>
+    </div>
+    <div class="column is-2">
+      <u>Expiry date</u>
+    </div>
+    <div class="column is-1">       
+    </div>
+    <div class="column is-1">       
+    </div>
+  </div>
+</div>
+
+{% for x in urls_list %}
+<div class="box">
+  <div class="columns is-vcentered">
+    <div class="column is-1">
+      {{ x.hash }}
+    </div>
+    <div class="column is-5">
+      {{ x.full_url }}
+    </div>
+    <div class="column is-2">
+      <div class="dropdown is-hoverable">
+        <div class="dropdown-trigger">
+          <div class="button" aria-haspopup="true"
+               aria-controls="dropdown-menu">
+            <span>Number of visits</span>
+            <span class="icon is-small">
+              <i class="fas fa-angle-down" aria-hidden="true"></i>
+            </span>
+          </div>
+        </div>
+        <div class="dropdown-menu" role="menu">
+          <div class="dropdown-content">
+            <div class="dropdown-item has-text-left">
+              <p>- Chrome: {{ x.visits_chrome }}</p>
+              <p>- Firefox: {{ x.visits_firefox }}</p>
+              <p>- Safari: {{ x.visits_safari }}</p>
+              <p>- Edge: {{ x.visits_edge }}</p>
+              <p>- Other: {{ x.visits_other }}</p>
+            </div>
+              <hr class="dropdown-divider">
+              <div class="dropdown-item has-text-left">
+                <p>- Total: {{ x.visits_all }}</p>
+              </div>
+          </div>
+        </div>
+      </div>                
+    </div>
+    <div class="column is-2">
+      {{ x.expiry_date.strftime("%Y-%m-%d, %H:%M:%S") }}
+    </div>
+    <div class="column is-1">       
+    </div>
+    <div class="column is-1">
+      <form method="POST" action="/remove">
+        <input type="hidden" name="hash" value="{{ x.hash }}">
+        <button class="button is-info">Remove</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endfor %}
+
+{% endblock %}
