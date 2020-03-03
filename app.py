@@ -1,8 +1,8 @@
 from flask import Flask, redirect, url_for, render_template, request
 from flask import flash
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import Column, BigInteger, String, DateTime
-from sqlalchemy.sql import func
+from sqlalchemy import Column, Integer, BigInteger, String, DateTime
+from sqlalchemy.sql import func, text
 from werkzeug.security import generate_password_hash
 from werkzeug.security import check_password_hash
 from flask_login import UserMixin, LoginManager,login_required
@@ -13,7 +13,7 @@ from base64 import b32encode
 
 
 css = 'https://cdn.jsdelivr.net/npm/bulma@0.8.0/css/bulma.min.css'
-expiry_time = 30
+expiry_time = timedelta(seconds=60)
 
 
 app = Flask(__name__)
@@ -38,7 +38,7 @@ class User(UserMixin, db.Model):
     __tablename__ = 'users'
     id = Column(BigInteger, primary_key=True)
     email = Column(String(100), unique=True)
-    password = Column(db.String(100))
+    password = Column(String(100))
     name = Column(String(100))
 
 
@@ -47,17 +47,35 @@ class Url(db.Model):
     hash = Column(String(50), primary_key=True)
     full_url = Column(String(2000))
     user_id = Column(BigInteger)
-    created = Column(DateTime,
-                     nullable=False,
-                     server_default=func.now())
+    visits_safari = Column(Integer, server_default=text('0'))
+    visits_chrome = Column(Integer, server_default=text('0'))
+    visits_firefox = Column(Integer, server_default=text('0'))
+    visits_edge = Column(Integer, server_default=text('0'))
+    visits_other = Column(Integer, server_default=text('0'))
+    created = Column(DateTime, server_default=func.now())
+
+    @property
+    def visits_all(self):
+        total = 0
+        total += self.visits_safari
+        total += self.visits_chrome
+        total += self.visits_firefox
+        total += self.visits_edge
+        total += self.visits_other
+        return total
 
 
-def expiry_cleanup(user_id='all'):
-    date_limit = datetime.now() - timedelta(seconds=expiry_time)
+def expiry_cleanup(user_id=None, hash=None, limit=None):
+    date_limit = datetime.now() - expiry_time
     query = Url.query
-    if not user_id == 'all':
+    if hash:
+        query = query.filter_by(hash=hash)
+    if user_id:
         query = query.filter_by(user_id=user_id)
-    for x in query.filter(Url.created <= date_limit):
+    query = query.filter(Url.created <= date_limit)
+    if limit:
+        query = query.order_by(Url.created).limit(limit)
+    for x in query:
         db.session.delete(x)
     db.session.commit()
 
@@ -82,15 +100,35 @@ def db_cleanup():
 
 @app.route('/')
 def index():
-    return render_template('index.html',
+    if current_user.is_authenticated:
+        return render_template('dashboard.html',
+                               css=css,
+                               user=current_user)
+    
+    return render_template('login.html',
                            css=css,
                            user=current_user)
 
 
 @app.route('/<hash>')
 def get_url(hash):
+    user_browser = request.user_agent.browser
+    expiry_cleanup(hash=hash)
+    
     for x in Url.query.filter_by(hash=hash):
+        if user_browser == 'safari':
+            x.visits_safari += 1
+        elif user_browser == 'chrome':
+            x.visits_chrome += 1
+        elif user_browser == 'firefox':
+            x.visits_firefox += 1
+        elif user_browser == 'edge':
+            x.visits_edge += 1
+        else:
+            x.visits_other += 1
+        db.session.commit()
         return redirect(x.full_url), 301
+    
     return render_template('404.html',
                            css=css,
                            user=current_user), 404
@@ -102,10 +140,15 @@ def dashboard():
     user_id = current_user.id
     expiry_cleanup(user_id=user_id)
     
-    urls_list = [ (x.hash,
-                   request.url_root + x.hash,
-                   x.full_url,
-                   x.created + timedelta(seconds=expiry_time))
+    urls_list = [ { 'hash': x.hash,
+                    'full_url': x.full_url,
+                    'expiry_date': x.created + expiry_time,
+                    'visits_safari': x.visits_safari,
+                    'visits_chrome': x.visits_chrome,
+                    'visits_firefox': x.visits_firefox,
+                    'visits_edge': x.visits_edge,
+                    'visits_other': x.visits_other,
+                    'visits_all': x.visits_all }
                   for x in Url.query.filter_by(user_id=user_id) ]
 
     return render_template('dashboard.html',
@@ -118,17 +161,21 @@ def dashboard():
 def shorten():
         full_url = request.form.get('full_url')
         user_id = current_user.id
-        expiry_cleanup(user_id=user_id)
+        expiry_cleanup(limit=1)
         
         while True:
-            created = datetime.now()
-            full = full_url + str(user_id) + str(created)
+            now = datetime.now()
+            full = full_url + str(user_id) + str(now)
             bfull = full.encode('utf-8')
             bhash = (md5(bfull).digest())[:5]
             hash = (b32encode(bhash).decode('utf-8').lower())[:7]
+
+            expiry_cleanup(hash=hash)            
+
             url_entry = Url(hash=hash,
                             full_url=full_url,
                             user_id=user_id)
+
             looping = False
             try:
                 db.session.add(url_entry)
